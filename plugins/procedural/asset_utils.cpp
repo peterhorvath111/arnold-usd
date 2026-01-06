@@ -222,18 +222,14 @@ inline void CollectDependenciesFromLayer(
         SdfReferenceVector refs;
         {
             // combine all authored list-op opinions
-            refs.insert(refs.end(),
-                refList.GetPrependedItems().begin(),
-                refList.GetPrependedItems().end());
-            refs.insert(refs.end(),
-                refList.GetAppendedItems().begin(),
-                refList.GetAppendedItems().end());
-            refs.insert(refs.end(),
-                refList.GetAddedItems().begin(),
-                refList.GetAddedItems().end());
-            refs.insert(refs.end(),
-                refList.GetExplicitItems().begin(),
-                refList.GetExplicitItems().end());
+            const auto prepended = refList.GetPrependedItems();
+            refs.insert(refs.end(), prepended.begin(), prepended.end());
+            const auto appended = refList.GetAppendedItems();
+            refs.insert(refs.end(), appended.begin(), appended.end());
+            const auto added = refList.GetAddedItems();
+            refs.insert(refs.end(), added.begin(), added.end());
+            const auto expl = refList.GetExplicitItems();
+            refs.insert(refs.end(), expl.begin(), expl.end());
         }
         for (const SdfReference& ref : refs)
         {
@@ -247,18 +243,14 @@ inline void CollectDependenciesFromLayer(
         SdfPayloadVector payloads;
         {
             // combine all authored list-op opinions
-            payloads.insert(payloads.end(),
-                payloadList.GetPrependedItems().begin(),
-                payloadList.GetPrependedItems().end());
-            payloads.insert(payloads.end(),
-                payloadList.GetAppendedItems().begin(),
-                payloadList.GetAppendedItems().end());
-            payloads.insert(payloads.end(),
-                payloadList.GetAddedItems().begin(),
-                payloadList.GetAddedItems().end());
-            payloads.insert(payloads.end(),
-                payloadList.GetExplicitItems().begin(),
-                payloadList.GetExplicitItems().end());
+            const auto prepended = payloadList.GetPrependedItems();
+            payloads.insert(payloads.end(), prepended.begin(), prepended.end());
+            const auto appended = payloadList.GetAppendedItems();
+            payloads.insert(payloads.end(), appended.begin(), appended.end());
+            const auto added = payloadList.GetAddedItems();
+            payloads.insert(payloads.end(), added.begin(), added.end());
+            const auto expl = payloadList.GetExplicitItems();
+            payloads.insert(payloads.end(), expl.begin(), expl.end());
         }
         for (const SdfPayload& p : payloads)
         {
