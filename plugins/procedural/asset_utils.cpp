@@ -800,6 +800,94 @@ inline bool GetIgnoreMissingFromDependency(const USDDependency& dep)
 }
 
 /**
+ * Collects dependencies using standard USD API.
+ *
+ * This function returns only resolved paths, but can not tell
+ * how and where these files are referenced in the scene.
+ */
+inline void ComputeAllDependencies(UsdStageRefPtr& stage, std::vector<std::string>& dependencies)
+{
+    // collect all asset dependencies (layers, references, payloads, unresolved) for a USD file
+    // prepare containers for outputs
+    std::vector<SdfLayerRefPtr> layerDeps;
+    std::vector<std::string> assetDeps;
+    std::vector<std::string> unresolvedDeps;
+
+    // read dependencies
+    std::string rootLayerPath = stage->GetRootLayer()->GetIdentifier();
+    SdfAssetPath rootLayerAssetPath(rootLayerPath);
+    bool ok = UsdUtilsComputeAllDependencies(
+        rootLayerAssetPath,
+        &layerDeps,
+        &assetDeps,
+        &unresolvedDeps);
+
+    if (!ok)
+    {
+        AiMsgWarning("Could not resolve dependencies via UsdUtilsComputeAllDependencies");
+        return;
+    }
+
+    // layer dependencies (opened as layers)
+    for (auto const &layerPtr : layerDeps)
+    {
+        const std::string& layerPath = layerPtr->GetIdentifier();
+        // ignore the root layer
+        if (layerPath != rootLayerPath)
+            dependencies.push_back(layerPath);
+    }
+    // other asset dependencies (references, payloads, clips, etc)
+    for (const std::string& path : assetDeps)
+        dependencies.push_back(path);
+
+    /* - we don't care about unresolved dependencies for now
+    // unresolved asset paths (could not resolve)
+    for (const std::string& unresolvedPath : unresolvedDeps)
+        dependencies.push_back(unresolvedPath);
+    */
+}
+
+inline std::string NormalizePath(const std::string path)
+{
+#ifdef WIN32
+    std::string normalizedPath = path;
+    std::replace(normalizedPath.begin(), normalizedPath.end(), '\\', '/');
+    std::transform(normalizedPath.begin(), normalizedPath.end(), normalizedPath.begin(), [](unsigned char c) { return (unsigned char)std::tolower(c); });
+    return normalizedPath;
+#else
+    return path;
+#endif
+}
+
+inline void AddMissedDependencies(UsdStageRefPtr& stage, const std::vector<USDDependency>& dependencies, std::vector<AtAsset*>& assets)
+{
+    std::unordered_set<std::string> foundDependencies;
+    for (const USDDependency& dep : dependencies)
+        foundDependencies.insert(NormalizePath(dep.resolvedPath));
+
+    std::vector<std::string> stageDependencies;
+    ComputeAllDependencies(stage, stageDependencies);
+
+    int numAdditionalDependencies = 0;
+    for (const std::string& resolvedPath : stageDependencies)
+    {
+        if (!foundDependencies.count(NormalizePath(resolvedPath)))
+        {
+            AiMsgDebug("[usd] additional dependency: %s", resolvedPath.c_str());
+
+            // add the dependency to the asset list
+            AtAsset* asset = AiAsset(resolvedPath.c_str(), AtFileType::Custom);
+            assets.push_back(asset);
+
+            ++numAdditionalDependencies;
+        }
+    }
+
+    if (numAdditionalDependencies)
+        AiMsgDebug("[usd] %d additional dependencies found", numAdditionalDependencies);
+}
+
+/**
  * Returns all assets found in the given USD scene.
  * 
  * The function collects all dependencies 
@@ -866,6 +954,12 @@ bool CollectSceneAssets(const std::string& filename, bool isProcedural, std::vec
             StdToAtString(GetNodeNameFromDependency(dep)),
             StdToAtString(GetNodeParameterFromDependency(dep)));
         assets.push_back(asset);
+    }
+
+    // look for missed dependencies
+    if (!isProcedural)
+    {
+        AddMissedDependencies(stage, dependencies, assets);
     }
 
     return true;
